@@ -1,0 +1,32 @@
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+deepdoc.egg-info/
+
+# Local environments
+.venv/
+venv/
+env/
+.idea/
+.agents/
+.codex/
+.env
+.env.*
+!.env.example
+!.env.prod.example
+
+# Local build/runtime metadata
+build-info.json
+.ci/
+tools/eval_datasets/*
+!tools/eval_datasets/README.md
+
+# DeepDoc runtime data and model caches
+resources/*
+!resources/.gitkeep

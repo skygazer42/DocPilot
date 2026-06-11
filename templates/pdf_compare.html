@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF Parser Compare</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #f6f8fb; color: #222; }
+    .wrap { display: grid; grid-template-columns: 340px 1fr; gap: 16px; padding: 16px; height: 100vh; box-sizing: border-box; }
+    .panel { background: #fff; border: 1px solid #e6e8ef; border-radius: 10px; padding: 14px; box-sizing: border-box; }
+    .title { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
+    .label { display: block; margin-bottom: 8px; font-size: 14px; }
+    input[type=file] { width: 100%; margin-bottom: 12px; }
+    button { width: 100%; padding: 10px 12px; border: 0; border-radius: 8px; background: #2563eb; color: #fff; font-size: 14px; cursor: pointer; }
+    button:disabled { background: #8ea8ef; cursor: not-allowed; }
+    .status { margin-top: 10px; font-size: 13px; color: #4b5563; white-space: pre-wrap; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 10px; }
+    .tab-btn { padding: 8px 12px; border: 1px solid #d7dbe8; background: #f9fafc; border-radius: 8px; cursor: pointer; font-size: 13px; }
+    .tab-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+    .tab-pane { display: none; height: calc(100vh - 98px); }
+    .tab-pane.active { display: block; }
+    .result { width: 100%; height: 100%; box-sizing: border-box; border: 1px solid #dfe3ee; border-radius: 8px; padding: 10px; background: #fcfdff; overflow: auto; white-space: pre-wrap; }
+    .error { color: #b42318; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <div class="title">解析模型对比</div>
+      <label class="label">上传 PDF 文件</label>
+      <input id="fileInput" type="file" accept=".pdf,application/pdf" />
+      <button id="runBtn">开始对比 (plain / PaddleOCR-VL / mineru)</button>
+      <div id="status" class="status">等待上传</div>
+    </div>
+
+    <div class="panel">
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="plain">plain</button>
+        <button class="tab-btn" data-tab="paddleocr">PaddleOCR-VL</button>
+        <button class="tab-btn" data-tab="mineru">mineru</button>
+      </div>
+
+      <div id="plain" class="tab-pane active">
+        <div id="plainError" class="error"></div>
+        <pre id="plainResult" class="result"></pre>
+      </div>
+      <div id="paddleocr" class="tab-pane">
+        <div id="paddleocrError" class="error"></div>
+        <pre id="paddleocrResult" class="result"></pre>
+      </div>
+      <div id="mineru" class="tab-pane">
+        <div id="mineruError" class="error"></div>
+        <pre id="mineruResult" class="result"></pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const runBtn = document.getElementById("runBtn");
+    const fileInput = document.getElementById("fileInput");
+    const statusEl = document.getElementById("status");
+
+    function setTab(tabName) {
+      document.querySelectorAll(".tab-btn").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.tab === tabName);
+      });
+      document.querySelectorAll(".tab-pane").forEach((pane) => {
+        pane.classList.toggle("active", pane.id === tabName);
+      });
+    }
+
+    document.querySelectorAll(".tab-btn").forEach((btn) => {
+      btn.addEventListener("click", () => setTab(btn.dataset.tab));
+    });
+
+    function fillResult(key, payload) {
+      const errEl = document.getElementById(`${key}Error`);
+      const resEl = document.getElementById(`${key}Result`);
+      errEl.textContent = payload.error ? `Error: ${payload.error}` : "";
+      resEl.textContent = payload.markdown || "";
+    }
+
+    runBtn.addEventListener("click", async () => {
+      const file = fileInput.files[0];
+      if (!file) {
+        statusEl.textContent = "请先选择 PDF 文件";
+        return;
+      }
+
+      runBtn.disabled = true;
+      statusEl.textContent = "解析中...";
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const resp = await fetch("/ui/pdf-compare/run", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          throw new Error(data.error || "请求失败");
+        }
+
+        fillResult("plain", data.results.plain);
+        fillResult("paddleocr", data.results.paddleocr);
+        fillResult("mineru", data.results.mineru);
+        statusEl.textContent = `完成: ${data.filename}`;
+      } catch (e) {
+        statusEl.textContent = `失败: ${e.message}`;
+      } finally {
+        runBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

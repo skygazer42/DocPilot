@@ -1,0 +1,3330 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "DocPilot Standalone API",
+    "description": "工业级文档理解引擎，提供 OCR 识别、版面分析和多格式文档解析服务。",
+    "version": "v1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "Local development service"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "健康检查",
+        "description": "Liveness 检查，返回服务运行状态、模型加载状态和运行时依赖摘要。",
+        "operationId": "HealthCheck",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "服务正常",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "deprecated": false
+      }
+    },
+    "/ready": {
+      "get": {
+        "summary": "就绪检查",
+        "description": "Readiness check for model files, artifact backend, ingest backend, request protection, async tasks, audit log, self-checks, and retention janitor.",
+        "operationId": "ReadinessCheck",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "服务已就绪",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "服务未就绪",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "deprecated": false
+      }
+    },
+    "/api/v1/build-info": {
+      "get": {
+        "summary": "查看构建信息",
+        "description": "返回当前运行镜像的构建来源、版本、依赖指纹和 runtime 摘要，供生产排障和发布验收使用。",
+        "operationId": "GetBuildInfo",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "构建信息读取成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuildInfoResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "deprecated": false
+      }
+    },
+    "/api/v1/ocr": {
+      "post": {
+        "summary": "OCR 图片识别",
+        "description": "对上传的图片进行 OCR 文字识别和版面分析，返回文字区域坐标及识别结果。",
+        "operationId": "OcrRecognize",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "图片文件，支持 png/jpg/jpeg/bmp/tiff/webp，最大尺寸 10000x10000"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "识别成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误（无文件、格式不支持、图片无效等）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "模型未加载",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/parse": {
+      "post": {
+        "summary": "文档解析",
+        "description": "上传一个或多个文档文件，自动根据扩展名判断类型并解析，返回 Markdown 格式结果。",
+        "operationId": "ParseDocument",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantIdHeader"
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "description": "设为 true 时直接返回 Markdown 文件下载（仅单文件时生效）",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "default": "false"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    },
+                    "description": "文档文件列表，支持 pdf/docx/xlsx/xls/pptx/ppt/html/json/md/txt/csv/tsv/rtf/odt/eml/msg/xml/zip/epub/caj/png/jpg/jpeg/bmp/tiff/webp 等格式"
+                  },
+                  "parser_engine": {
+                    "type": "string",
+                    "enum": [
+                      "deepdoc",
+                      "paddleocr_vl",
+                      "markitdown",
+                      "mineru",
+                      "plain"
+                    ],
+                    "default": "deepdoc",
+                    "description": "PDF 解析引擎选择（默认 deepdoc，兼容旧别名 paddleocr）；非 PDF 文件可显式传 markitdown"
+                  },
+                  "compute_device": {
+                    "type": "string",
+                    "enum": [
+                      "gpu",
+                      "cpu"
+                    ],
+                    "default": "gpu",
+                    "description": "远程解析设备模式（默认 gpu，非 gpu 时走 cpu）"
+                  },
+                  "execution_profile": {
+                    "type": "string",
+                    "enum": [
+                      "auto",
+                      "cpu",
+                      "gpu"
+                    ],
+                    "default": "auto",
+                    "description": "deepdoc 执行画像：auto 保持当前默认调度；cpu 为保守 CPU 路径；gpu 为后续 GPU 页级并发/混合路由保留"
+                  },
+                  "deepdoc_pdf_mode": {
+                    "type": "string",
+                    "enum": [
+                      "auto",
+                      "native",
+                      "ocr",
+                      "hybrid"
+                    ],
+                    "default": "auto",
+                    "description": "deepdoc PDF 模式：auto 自动判别原生文本层/扫描件；native 强制原生文本层；ocr 强制 OCR + Layout；hybrid 当前按 auto 处理，后续再接入 page/block 混合路由"
+                  },
+                  "return_images": {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false",
+                      "1",
+                      "0",
+                      "yes",
+                      "no"
+                    ],
+                    "default": "false",
+                    "description": "是否返回图片内容，默认 false（纯文本优先）"
+                  },
+                  "strict_text": {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false",
+                      "1",
+                      "0",
+                      "yes",
+                      "no"
+                    ],
+                    "default": "false",
+                    "description": "是否剥离 HTML 标签并返回纯文本 Markdown，默认 false"
+                  },
+                  "enable_formula": {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false",
+                      "1",
+                      "0",
+                      "yes",
+                      "no"
+                    ],
+                    "default": "false",
+                    "description": "是否启用公式识别（仅 parser_engine=deepdoc 生效）"
+                  },
+                  "enable_seal": {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false",
+                      "1",
+                      "0",
+                      "yes",
+                      "no"
+                    ],
+                    "default": "false",
+                    "description": "是否启用印章识别（仅 parser_engine=deepdoc 生效）"
+                  },
+                  "return_structured": {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false",
+                      "1",
+                      "0",
+                      "yes",
+                      "no"
+                    ],
+                    "default": "false",
+                    "description": "是否在响应中附带结构化解析产物"
+                  },
+                  "persist_artifacts": {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false",
+                      "1",
+                      "0",
+                      "yes",
+                      "no"
+                    ],
+                    "default": "false",
+                    "description": "是否持久化 markdown / structured.json / assets"
+                  },
+                  "persist_source": {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false",
+                      "1",
+                      "0",
+                      "yes",
+                      "no"
+                    ],
+                    "default": "false",
+                    "description": "持久化时是否保存原始上传文件"
+                  },
+                  "include_chunks": {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false",
+                      "1",
+                      "0",
+                      "yes",
+                      "no"
+                    ],
+                    "default": "false",
+                    "description": "结构化结果中是否生成 chunks（默认 return_structured 或 persist_artifacts 时启用）"
+                  },
+                  "chunk_max_tokens": {
+                    "type": "integer",
+                    "default": 800,
+                    "description": "chunk 最大 token 数"
+                  },
+                  "chunk_overlap_tokens": {
+                    "type": "integer",
+                    "default": 120,
+                    "description": "chunk 间重叠 token 数"
+                  },
+                  "chunk_strategy": {
+                    "type": "string",
+                    "enum": [
+                      "structure_aware",
+                      "page_aware",
+                      "asset_aware"
+                    ],
+                    "default": "structure_aware",
+                    "description": "chunk 切块策略：structure_aware 按结构顺序合并，page_aware 避免跨页合并，asset_aware 让 table/figure/equation/seal 等资产块独立成 chunk"
+                  },
+                  "publish_ingest": {
+                    "type": "string",
+                    "description": "是否在解析完成后自动把 ingest 记录发布到配置的 sink；开启时会强制 persist_artifacts=true"
+                  },
+                  "reuse_artifacts": {
+                    "type": "string",
+                    "description": "是否按 artifact_key 复用已有解析产物；命中时不重复跑解析流程"
+                  },
+                  "tenant_id": {
+                    "type": "string",
+                    "description": "租户 ID。JWT 模式下一般由 token claim 提供；admin token 可显式覆盖"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "解析成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParseBatchResponse"
+                }
+              },
+              "text/markdown": {
+                "schema": {
+                  "type": "string",
+                  "description": "当 download=true 且仅上传单文件时返回 Markdown 文件"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "全部文件解析失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParseBatchResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/parse/stream": {
+      "post": {
+        "summary": "同步流式文档解析",
+        "description": "上传一个或多个文档文件，同步执行解析，并通过 text/event-stream 返回请求开始、文件开始、文件完成和最终结果事件。该端点提供文件级进度，不改变解析产物格式。",
+        "operationId": "ParseDocumentStream",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantIdHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    },
+                    "description": "文档文件列表，支持格式与 /api/v1/parse 一致"
+                  },
+                  "parser_engine": {
+                    "type": "string",
+                    "enum": [
+                      "deepdoc",
+                      "paddleocr_vl",
+                      "markitdown",
+                      "mineru",
+                      "plain"
+                    ],
+                    "default": "deepdoc",
+                    "description": "解析引擎参数与同步 parse 接口一致"
+                  },
+                  "compute_device": {
+                    "type": "string",
+                    "description": "远端解析设备模式，与同步 parse 接口一致"
+                  },
+                  "execution_profile": {
+                    "type": "string",
+                    "enum": [
+                      "auto",
+                      "cpu",
+                      "gpu"
+                    ],
+                    "default": "auto",
+                    "description": "deepdoc 执行画像，与同步 parse 接口一致"
+                  },
+                  "deepdoc_pdf_mode": {
+                    "type": "string",
+                    "enum": [
+                      "auto",
+                      "native",
+                      "ocr",
+                      "hybrid"
+                    ],
+                    "default": "auto",
+                    "description": "deepdoc PDF 模式，与同步 parse 接口一致；hybrid 当前先按 auto 处理"
+                  },
+                  "return_structured": {
+                    "type": "string",
+                    "description": "是否在最终 result 中返回结构化解析产物"
+                  },
+                  "persist_artifacts": {
+                    "type": "string",
+                    "description": "是否持久化 markdown / structured.json / chunks / ingest / assets"
+                  },
+                  "include_chunks": {
+                    "type": "string",
+                    "description": "是否生成 chunks"
+                  },
+                  "chunk_strategy": {
+                    "type": "string",
+                    "enum": [
+                      "structure_aware",
+                      "page_aware",
+                      "asset_aware"
+                    ],
+                    "description": "chunk 切块策略，与同步 parse 接口一致"
+                  },
+                  "tenant_id": {
+                    "type": "string",
+                    "description": "租户 ID。JWT 模式下一般由 token claim 提供；admin token 可显式覆盖"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SSE 事件流，事件类型包括 start、file_started、file_completed、done",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Server-Sent Events stream. data 字段为 JSON 对象。"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "租户或权限校验失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/parse/async": {
+      "post": {
+        "summary": "提交异步文档解析任务",
+        "description": "上传一个或多个文档文件并提交到异步解析队列，立即返回 task_id，实际解析由独立 worker 完成。",
+        "operationId": "ParseDocumentAsync",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantIdHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    },
+                    "description": "文档文件列表，支持 pdf/docx/xlsx/xls/pptx/ppt/html/json/md/txt/csv/tsv/rtf/odt/eml/msg/xml/zip/epub/caj/png/jpg/jpeg/bmp/tiff/webp 等格式"
+                  },
+                  "parser_engine": {
+                    "type": "string",
+                    "description": "解析引擎参数与同步 parse 接口一致"
+                  },
+                  "compute_device": {
+                    "type": "string",
+                    "description": "远端解析设备模式（仅远程解析器生效）"
+                  },
+                  "execution_profile": {
+                    "type": "string",
+                    "enum": [
+                      "auto",
+                      "cpu",
+                      "gpu"
+                    ],
+                    "default": "auto",
+                    "description": "deepdoc 执行画像，与同步 parse 接口一致"
+                  },
+                  "deepdoc_pdf_mode": {
+                    "type": "string",
+                    "enum": [
+                      "auto",
+                      "native",
+                      "ocr",
+                      "hybrid"
+                    ],
+                    "default": "auto",
+                    "description": "deepdoc PDF 模式，与同步 parse 接口一致；hybrid 当前按 auto 处理"
+                  },
+                  "return_images": {
+                    "type": "string"
+                  },
+                  "strict_text": {
+                    "type": "string"
+                  },
+                  "enable_formula": {
+                    "type": "string"
+                  },
+                  "enable_seal": {
+                    "type": "string"
+                  },
+                  "return_structured": {
+                    "type": "string"
+                  },
+                  "persist_source": {
+                    "type": "string"
+                  },
+                  "include_chunks": {
+                    "type": "string"
+                  },
+                  "chunk_max_tokens": {
+                    "type": "integer"
+                  },
+                  "chunk_overlap_tokens": {
+                    "type": "integer"
+                  },
+                  "chunk_strategy": {
+                    "type": "string",
+                    "enum": [
+                      "structure_aware",
+                      "page_aware",
+                      "asset_aware"
+                    ],
+                    "default": "structure_aware",
+                    "description": "chunk 切块策略，与同步 parse 接口一致"
+                  },
+                  "publish_ingest": {
+                    "type": "string"
+                  },
+                  "reuse_artifacts": {
+                    "type": "string"
+                  },
+                  "tenant_id": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "任务已提交",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "异步 worker 或依赖未就绪",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/tasks": {
+      "get": {
+        "summary": "列出异步解析任务",
+        "description": "返回最近提交的异步解析任务，可按状态、租户和回调状态过滤。",
+        "operationId": "ListAsyncTasks",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "callback_status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "callback_configured",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "任务列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/tasks/callbacks/retry": {
+      "post": {
+        "summary": "批量重发异步任务回调",
+        "description": "按任务状态和回调状态筛选异步任务，并批量重发任务 webhook 回调。",
+        "operationId": "RetryAsyncTaskCallbacks",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "批量重发结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/tasks/retry": {
+      "post": {
+        "summary": "批量重试异步解析任务",
+        "description": "按任务状态和解析器类型筛选终态任务，并克隆 source 文件重新入队。",
+        "operationId": "RetryAsyncTasks",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "批量重试结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/tasks/cleanup": {
+      "post": {
+        "summary": "清理异步解析任务",
+        "description": "按状态、租户和保留策略清理历史异步任务。默认不会删除 queued/running/cancel_requested 任务。",
+        "operationId": "CleanupAsyncTasks",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "清理结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "清理参数无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/audit/events": {
+      "get": {
+        "summary": "列出运维审计事件",
+        "description": "按 action、resource_type、status、request_id、actor_subject、tenant_id 等条件查询 ops audit 事件。开启鉴权时仅 admin 可访问。",
+        "operationId": "ListAuditEvents",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resource_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resource_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "request_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "actor_subject",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit event list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query"
+          },
+          "403": {
+            "description": "Admin capability required"
+          },
+          "503": {
+            "description": "Audit backend unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/audit/events/cleanup": {
+      "post": {
+        "summary": "清理运维审计事件",
+        "description": "按 tenant、action、resource_type、status 和保留策略清理 ops audit 事件。默认 dry_run=true。",
+        "operationId": "CleanupAuditEvents",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cleanup result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid cleanup payload"
+          },
+          "403": {
+            "description": "Admin capability required"
+          },
+          "503": {
+            "description": "Audit backend unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/audit/events/{event_id}": {
+      "get": {
+        "summary": "查看运维审计事件",
+        "description": "返回指定 ops audit event。开启鉴权时仅 admin 可访问。",
+        "operationId": "GetAuditEvent",
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit event detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin capability required"
+          },
+          "404": {
+            "description": "Audit event not found"
+          },
+          "503": {
+            "description": "Audit backend unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/self-checks": {
+      "get": {
+        "summary": "列出生产自检结果",
+        "description": "返回最近的生产自检运行结果。开启鉴权时仅 admin 可访问。",
+        "operationId": "ListSelfChecks",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 20
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "running",
+                "passed",
+                "failed"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Self-check run list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin capability required"
+          }
+        }
+      }
+    },
+    "/api/v1/self-checks/run": {
+      "post": {
+        "summary": "运行生产自检",
+        "description": "执行内置 production self-check。当前仅支持 core 套件。",
+        "operationId": "RunSelfCheck",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Self-check passed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid self-check request"
+          },
+          "403": {
+            "description": "Admin capability required"
+          },
+          "500": {
+            "description": "Self-check failed"
+          }
+        }
+      }
+    },
+    "/api/v1/self-checks/cleanup": {
+      "post": {
+        "summary": "清理生产自检历史",
+        "description": "按状态和保留策略清理历史 self-check 结果。",
+        "operationId": "CleanupSelfChecks",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cleanup result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid cleanup payload"
+          },
+          "403": {
+            "description": "Admin capability required"
+          }
+        }
+      }
+    },
+    "/api/v1/self-checks/{check_id}": {
+      "get": {
+        "summary": "查看单次生产自检结果",
+        "description": "返回指定 self-check 运行详情。开启鉴权时仅 admin 可访问。",
+        "operationId": "GetSelfCheck",
+        "parameters": [
+          {
+            "name": "check_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Self-check run detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin capability required"
+          },
+          "404": {
+            "description": "Self-check not found"
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{task_id}/stream": {
+      "get": {
+        "summary": "订阅异步解析任务流",
+        "description": "返回 text/event-stream，按顺序输出任务快照、任务事件、回调事件、heartbeat 和终态。",
+        "operationId": "StreamAsyncTask",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "include_result",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "include_callback_events",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "replay_existing",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "poll_seconds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 1.0
+            }
+          },
+          {
+            "name": "heartbeat_seconds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 5.0
+            }
+          },
+          {
+            "name": "timeout_seconds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 300.0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE 任务事件流",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "任务不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/tasks/{task_id}": {
+      "get": {
+        "summary": "获取异步解析任务详情",
+        "operationId": "GetAsyncTask",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "任务详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "任务不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/tasks/{task_id}/callback-events": {
+      "get": {
+        "summary": "获取异步解析任务回调事件",
+        "operationId": "GetAsyncTaskCallbackEvents",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "任务回调事件列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "任务不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/tasks/{task_id}/retry": {
+      "post": {
+        "summary": "重试单个异步解析任务",
+        "description": "为终态任务克隆 source 文件并创建新的 retry task。已成功任务需要 force=true。",
+        "operationId": "RetryAsyncTask",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "重试任务已入队",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "任务不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/tasks/{task_id}/callback/retry": {
+      "post": {
+        "summary": "重发异步解析任务回调",
+        "operationId": "RetryAsyncTaskCallback",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "回调重发结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "任务不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/tasks/{task_id}/events": {
+      "get": {
+        "summary": "获取异步解析任务事件流",
+        "operationId": "GetAsyncTaskEvents",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "任务事件列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "任务不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/tasks/{task_id}/cancel": {
+      "post": {
+        "summary": "取消异步解析任务",
+        "operationId": "CancelAsyncTask",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取消请求已受理",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "任务不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/artifacts/{parse_id}/structured": {
+      "get": {
+        "summary": "获取结构化解析产物",
+        "parameters": [
+          {
+            "name": "parse_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "结构化解析产物 JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "artifact not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/artifacts/{parse_id}/markdown": {
+      "get": {
+        "summary": "获取持久化 Markdown",
+        "parameters": [
+          {
+            "name": "parse_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Markdown 文件",
+            "content": {
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "artifact not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/artifacts/{parse_id}/assets/{filename}": {
+      "get": {
+        "summary": "获取持久化图片资产",
+        "parameters": [
+          {
+            "name": "parse_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "图片资产文件"
+          },
+          "404": {
+            "description": "asset not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/artifacts/{parse_id}/chunks": {
+      "get": {
+        "summary": "Get chunk artifact",
+        "parameters": [
+          {
+            "name": "parse_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asset_url_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "proxy",
+                "direct",
+                "signed"
+              ],
+              "default": "proxy"
+            },
+            "description": "Resolve chunk asset links via proxy, direct object URL, or signed object URL."
+          },
+          {
+            "name": "expires_in",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 60,
+              "maximum": 604800,
+              "default": 3600
+            },
+            "description": "Signed URL expiration in seconds when asset_url_mode=signed."
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "default": "false"
+            },
+            "description": "Force regeneration of chunk export from structured.json."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chunk artifact jsonl",
+            "content": {
+              "application/x-ndjson": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Artifact not found"
+          }
+        }
+      }
+    },
+    "/api/v1/artifacts/{parse_id}/ingest": {
+      "get": {
+        "summary": "Get ingestion artifact",
+        "parameters": [
+          {
+            "name": "parse_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asset_url_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "proxy",
+                "direct",
+                "signed"
+              ],
+              "default": "proxy"
+            }
+          },
+          {
+            "name": "expires_in",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 60,
+              "maximum": 604800,
+              "default": 3600
+            }
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "default": "false"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ingest artifact jsonl",
+            "content": {
+              "application/x-ndjson": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Artifact not found"
+          }
+        }
+      }
+    },
+    "/api/v1/artifacts": {
+      "get": {
+        "summary": "List artifact manifests",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 20
+            }
+          },
+          {
+            "name": "publish_status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "published",
+                "failed",
+                "disabled"
+              ]
+            }
+          },
+          {
+            "name": "publish_retryable",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Artifact manifest list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/artifacts/{parse_id}/manifest": {
+      "get": {
+        "summary": "Get artifact manifest",
+        "parameters": [
+          {
+            "name": "parse_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Artifact manifest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Artifact not found"
+          }
+        }
+      }
+    },
+    "/api/v1/artifacts/{parse_id}/publish-events": {
+      "get": {
+        "summary": "Get artifact publish event stream",
+        "parameters": [
+          {
+            "name": "parse_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Artifact publish events jsonl",
+            "content": {
+              "application/x-ndjson": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Artifact not found"
+          }
+        }
+      }
+    },
+    "/api/v1/artifacts/{parse_id}/publish": {
+      "post": {
+        "summary": "Republish artifact ingest records",
+        "parameters": [
+          {
+            "name": "parse_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "force": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "requested_by": {
+                    "type": "string",
+                    "default": "retry"
+                  },
+                  "asset_url_mode": {
+                    "type": "string",
+                    "enum": [
+                      "proxy",
+                      "direct",
+                      "signed"
+                    ]
+                  },
+                  "expires_in": {
+                    "type": "integer",
+                    "minimum": 60,
+                    "maximum": 604800,
+                    "default": 3600
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Republish result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Artifact not found"
+          }
+        }
+      }
+    },
+    "/api/v1/artifacts/publish-retry": {
+      "post": {
+        "summary": "Retry failed artifact ingest publishes in batch",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 500,
+                    "default": 50
+                  },
+                  "scan_limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5000,
+                    "default": 250
+                  },
+                  "only_due": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "include_dead_lettered": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "force": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "requested_by": {
+                    "type": "string",
+                    "default": "retry-batch"
+                  },
+                  "parser_engine": {
+                    "type": "string"
+                  },
+                  "file_type": {
+                    "type": "string"
+                  },
+                  "tenant_id": {
+                    "type": "string"
+                  },
+                  "asset_url_mode": {
+                    "type": "string",
+                    "enum": [
+                      "proxy",
+                      "direct",
+                      "signed"
+                    ]
+                  },
+                  "expires_in": {
+                    "type": "integer",
+                    "minimum": 60,
+                    "maximum": 604800,
+                    "default": 3600
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Batch retry result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid retry payload"
+          }
+        }
+      }
+    },
+    "/api/v1/ingest/documents": {
+      "get": {
+        "summary": "List ingested documents from PostgreSQL sink",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "parser_engine",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "file_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "publish_status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ingested document list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Ingest query backend unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/ingest/stats": {
+      "get": {
+        "summary": "Get PostgreSQL ingest statistics",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "parse_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "parser_engine",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "file_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "include_breakdown",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ingest statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Ingest query backend unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/ingest/documents/{parse_id}": {
+      "get": {
+        "summary": "Get ingested document manifest from PostgreSQL sink",
+        "parameters": [
+          {
+            "name": "parse_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ingested document manifest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ingest document not found"
+          },
+          "503": {
+            "description": "Ingest query backend unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/ingest/records": {
+      "get": {
+        "summary": "Search ingested records from PostgreSQL sink",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "text"
+              ],
+              "default": "text"
+            },
+            "description": "Text search over parsed ingest records. Vector and hybrid retrieval are not part of this service."
+          },
+          {
+            "name": "parse_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ingested records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Ingest query backend unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/artifacts/cleanup": {
+      "post": {
+        "summary": "Cleanup artifacts",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cleanup result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid cleanup payload"
+          }
+        }
+      }
+    },
+    "/api/v1/ingest/assets": {
+      "get": {
+        "summary": "List structured ingest assets from PostgreSQL sink",
+        "parameters": [
+          {
+            "name": "parse_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asset_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Structured ingest assets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Ingest asset queries not supported by active backend"
+          },
+          "503": {
+            "description": "Ingest query backend unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/ingest/assets/{parse_id}/{asset_id}": {
+      "get": {
+        "summary": "Get one structured ingest asset from PostgreSQL sink",
+        "parameters": [
+          {
+            "name": "parse_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Structured ingest asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ingest asset not found"
+          },
+          "501": {
+            "description": "Ingest asset queries not supported by active backend"
+          },
+          "503": {
+            "description": "Ingest query backend unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/ingest/chunks": {
+      "get": {
+        "summary": "List structured ingest chunks from PostgreSQL sink",
+        "parameters": [
+          {
+            "name": "parse_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chunk_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Structured ingest chunks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Ingest chunk queries not supported by active backend"
+          },
+          "503": {
+            "description": "Ingest query backend unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/ingest/chunk-asset-links": {
+      "get": {
+        "summary": "List chunk-to-asset relationships from PostgreSQL sink",
+        "parameters": [
+          {
+            "name": "parse_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chunk_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "relation_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "direct",
+                "context"
+              ]
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 50
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chunk asset relationships",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Chunk asset link queries not supported by active backend"
+          },
+          "503": {
+            "description": "Ingest query backend unavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok"
+          },
+          "ocr_loaded": {
+            "type": "boolean",
+            "description": "OCR 模型是否已加载"
+          },
+          "model_path": {
+            "type": "string",
+            "description": "模型文件路径",
+            "example": "./models"
+          },
+          "auth_mode": {
+            "type": "string"
+          },
+          "default_tenant_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "api_docs": {
+            "type": "object",
+            "properties": {
+              "docs_url": {
+                "type": "string"
+              },
+              "openapi_url": {
+                "type": "string"
+              },
+              "build_info_url": {
+                "type": "string"
+              }
+            }
+          },
+          "cors": {
+            "type": "object"
+          },
+          "build": {
+            "$ref": "#/components/schemas/BuildInfoSummary"
+          },
+          "artifact_backend": {
+            "type": [
+              "string",
+              "object"
+            ]
+          },
+          "ingest_publisher": {
+            "type": "string"
+          },
+          "self_checks": {
+            "$ref": "#/components/schemas/SelfCheckHealthResponse"
+          },
+          "tracing": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "provider": {
+                "type": "string"
+              },
+              "exporters": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "service_name": {
+                "type": "string"
+              },
+              "endpoint": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "sample_ratio": {
+                "type": "number"
+              },
+              "excluded_urls": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "instrumented": {
+                "type": "boolean"
+              },
+              "log_correlation": {
+                "type": "boolean"
+              },
+              "error": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "ingest_query_backend": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ingest_query_status": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "audit_log": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "request_protection": {
+            "type": "object"
+          },
+          "async_tasks": {
+            "type": "object"
+          },
+          "internal_details_exposed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "BuildInfoSummary": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "embedded": {
+            "type": "boolean"
+          },
+          "package_name": {
+            "type": "string"
+          },
+          "package_version": {
+            "type": "string"
+          },
+          "build_timestamp": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "build_age_seconds": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "build_source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "image_tag": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vcs_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vcs_ref_short": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_tree_sha": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_tree_sha12": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requirements_sha12": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pyproject_sha12": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "openapi_sha12": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pip_extras": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "build_info_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "BuildInfoResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/BuildInfoSummary"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "build_timestamp_epoch_seconds": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "pyproject_sha256": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "openapi_sha256": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "requirements_sha256": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "source_tree_sha256": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "runtime": {
+                "type": "object",
+                "properties": {
+                  "python_version": {
+                    "type": "string"
+                  },
+                  "platform": {
+                    "type": "string"
+                  },
+                  "service_name": {
+                    "type": "string"
+                  },
+                  "deployment_environment": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              },
+              "summary": {
+                "$ref": "#/components/schemas/BuildInfoSummary"
+              }
+            }
+          }
+        ]
+      },
+      "SelfCheckRunSummaryResponse": {
+        "type": "object",
+        "properties": {
+          "check_id": {
+            "type": "string"
+          },
+          "suite": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      },
+      "SelfCheckHealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "disabled",
+              "error"
+            ]
+          },
+          "auto_enabled": {
+            "type": "boolean"
+          },
+          "required_for_ready": {
+            "type": "boolean"
+          },
+          "last_run_max_age_seconds": {
+            "type": "integer"
+          },
+          "last_run_age_seconds": {
+            "type": "number"
+          },
+          "store": {
+            "type": "object"
+          },
+          "worker": {
+            "type": "object"
+          },
+          "latest_run": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SelfCheckRunSummaryResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "OcrResponse": {
+        "type": "object",
+        "properties": {
+          "cost_seconds": {
+            "type": "number",
+            "description": "处理耗时（秒）",
+            "example": 1.23
+          },
+          "ocr_result": {
+            "type": "array",
+            "description": "OCR 识别结果列表",
+            "items": {
+              "type": "object"
+            }
+          },
+          "layout_result": {
+            "type": "array",
+            "description": "版面分析结果列表",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "ParseBatchResponse": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "description": "各文件解析结果列表",
+            "items": {
+              "$ref": "#/components/schemas/ParseResultItem"
+            }
+          }
+        }
+      },
+      "ParseResultItem": {
+        "type": "object",
+        "required": [
+          "filename"
+        ],
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "原始文件名",
+            "example": "report.pdf"
+          },
+          "type": {
+            "type": "string",
+            "description": "推断的文件类型",
+            "example": "pdf"
+          },
+          "markdown": {
+            "type": "string",
+            "description": "解析后的 Markdown 内容"
+          },
+          "seal_count": {
+            "type": "integer",
+            "description": "印章个数（仅 parser_engine=paddleocr_vl 或兼容别名 paddleocr 且 pdf 解析时返回）",
+            "example": 2
+          },
+          "document_id": {
+            "type": "string",
+            "description": "源文件 SHA-256 文档标识"
+          },
+          "parse_id": {
+            "type": "string",
+            "description": "本次解析任务标识"
+          },
+          "asset_count": {
+            "type": "integer",
+            "description": "结构化产物中的图片资产数量"
+          },
+          "chunk_count": {
+            "type": "integer",
+            "description": "结构化产物中的 chunk 数量"
+          },
+          "cache_hit": {
+            "type": "boolean",
+            "description": "是否命中 artifact 复用缓存"
+          },
+          "artifact_urls": {
+            "$ref": "#/components/schemas/ArtifactUrls"
+          },
+          "ingest_publish": {
+            "type": "object",
+            "description": "ingest 自动发布或补发的状态摘要"
+          },
+          "structured": {
+            "type": "object",
+            "description": "结构化解析产物（仅 return_structured=true 时返回）"
+          },
+          "error": {
+            "type": "string",
+            "description": "该文件的错误信息（成功时无此字段）"
+          }
+        }
+      },
+      "ArtifactUrls": {
+        "type": "object",
+        "properties": {
+          "markdown_url": {
+            "type": "string"
+          },
+          "manifest_url": {
+            "type": "string"
+          },
+          "publish_events_url": {
+            "type": "string"
+          },
+          "structured_url": {
+            "type": "string"
+          },
+          "chunks_url": {
+            "type": "string"
+          },
+          "ingest_url": {
+            "type": "string"
+          },
+          "assets_url_prefix": {
+            "type": "string"
+          },
+          "storage_backend": {
+            "type": "string"
+          },
+          "root_dir": {
+            "type": "string"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "error",
+          "error_code",
+          "message",
+          "message_zh",
+          "locale",
+          "details"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "兼容旧客户端的错误信息，通常等同于触发错误时的英文 message 或运行时错误文本。",
+            "example": "No file part"
+          },
+          "error_code": {
+            "type": "string",
+            "description": "稳定错误码，客户端应优先使用该字段做分支处理。",
+            "example": "NO_FILE_PART"
+          },
+          "message": {
+            "type": "string",
+            "description": "英文标准错误消息。",
+            "example": "No file part"
+          },
+          "message_zh": {
+            "type": "string",
+            "description": "中文标准错误消息。",
+            "example": "缺少文件字段"
+          },
+          "locale": {
+            "type": "string",
+            "description": "根据 Accept-Language 归一化后的错误消息 locale。",
+            "example": "zh-CN"
+          },
+          "details": {
+            "type": "object",
+            "description": "结构化错误详情，例如字段名、文件名、限制值或 retry_after。",
+            "additionalProperties": true,
+            "example": {
+              "field": "file"
+            }
+          }
+        }
+      }
+    },
+    "parameters": {
+      "TenantIdHeader": {
+        "name": "X-Tenant-ID",
+        "in": "header",
+        "required": false,
+        "description": "租户 ID。API key 或匿名模式可通过该请求头指定租户；JWT 模式下一般由 token claim 提供，非 admin 不允许覆盖 token tenant，admin token 可显式覆盖。",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "通过 Authorization: Bearer <token> 传递 API 密钥"
+      },
+      "ApiKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "通过 X-API-Key 请求头传递 API 密钥"
+      }
+    }
+  },
+  "security": [
+    {
+      "BearerAuth": []
+    },
+    {
+      "ApiKeyHeader": []
+    }
+  ]
+}

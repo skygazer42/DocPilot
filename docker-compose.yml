@@ -1,0 +1,53 @@
+services:
+  deepdoc:
+    build:
+      context: .
+      dockerfile: ${DEEPDOC_DOCKERFILE:-Dockerfile.cpu}
+      args:
+        DEEPDOC_RUNTIME_UID: ${DEEPDOC_RUNTIME_UID:-1000}
+        DEEPDOC_RUNTIME_GID: ${DEEPDOC_RUNTIME_GID:-1000}
+    image: deepdoc-standalone:${DEEPDOC_IMAGE_TAG:-local}
+    container_name: deepdoc
+    env_file:
+      - .env
+    environment:
+      DEEPDOC_MODEL_PATH: /app/resources/models
+      DEEPDOC_AUTO_DOWNLOAD: ${DEEPDOC_AUTO_DOWNLOAD:-1}
+      DEEPDOC_DOWNLOAD_GROUPS: ${DEEPDOC_DOWNLOAD_GROUPS:-published}
+      DEEPDOC_PDF_PARSER: ${DEEPDOC_PDF_PARSER:-deepdoc}
+      DEEPDOC_PDF_MAX_PAGES: ${DEEPDOC_PDF_MAX_PAGES:-10}
+      DEEPDOC_OCR_VERSION: ${DEEPDOC_OCR_VERSION:-v4}
+      DEEPDOC_REC_IMAGE_SHAPE: ${DEEPDOC_REC_IMAGE_SHAPE:-}
+      DEEPDOC_OCR_V4_REC_IMAGE_SHAPE: ${DEEPDOC_OCR_V4_REC_IMAGE_SHAPE:-}
+      DEEPDOC_OCR_V5_REC_IMAGE_SHAPE: ${DEEPDOC_OCR_V5_REC_IMAGE_SHAPE:-}
+      DEEPDOC_LAYOUT_ENGINE: ${DEEPDOC_LAYOUT_ENGINE:-legacy}
+      DEEPDOC_TABLE_ENGINE: ${DEEPDOC_TABLE_ENGINE:-tatr}
+      DEEPDOC_FORMULA_MODE: ${DEEPDOC_FORMULA_MODE:-rapidlatex}
+      DEEPDOC_READING_ORDER_STRATEGY: ${DEEPDOC_READING_ORDER_STRATEGY:-legacy}
+      DEEPDOC_ONNX_PROVIDER: ${DEEPDOC_ONNX_PROVIDER:-cpu}
+      DEEPDOC_INGEST_PUBLISHER: none
+      DEEPDOC_ASYNC_ENABLED: "0"
+      DEEPDOC_RATE_LIMIT_ENABLED: "0"
+      DEEPDOC_TRACING_ENABLED: "0"
+      DEEPDOC_SELF_CHECK_AUTO_ENABLED: "0"
+      DEEPDOC_RETENTION_JANITOR_ENABLED: "0"
+      DEEPDOC_AUDIT_BACKEND: file
+      DEEPDOC_AUTH_MODE: ${DEEPDOC_AUTH_MODE:-none}
+      SECRET_ACCESS_KEY: ${SECRET_ACCESS_KEY:-}
+      HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
+      HF_HUB_DISABLE_XET: ${HF_HUB_DISABLE_XET:-1}
+      HF_TOKEN: ${HF_TOKEN:-}
+    ports:
+      - "${DEEPDOC_API_PORT:-8000}:8000"
+    volumes:
+      - ./resources/models:/app/resources/models
+      - ./resources/artifacts:/app/resources/artifacts
+      - ./resources/logs:/app/resources/logs
+      - ./resources/temp:/app/resources/temp
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/health >/dev/null || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped

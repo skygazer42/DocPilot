@@ -1,0 +1,95 @@
+# syntax=docker/dockerfile:1.7
+
+FROM python:3.10-slim AS app-runtime
+
+ARG DEEPDOC_ONNXRUNTIME_PACKAGE="onnxruntime==1.23.2"
+ARG DEEPDOC_IMAGE_VARIANT="cpu"
+ARG DEEPDOC_DEFAULT_ONNX_PROVIDER="cpu"
+ARG DEEPDOC_BUILD_VERSION="0.1.0"
+ARG DEEPDOC_RUNTIME_UID="1000"
+ARG DEEPDOC_RUNTIME_GID="1000"
+
+WORKDIR /app
+
+RUN sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources && \
+    sed -i 's|security.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+      curl \
+      default-jre-headless \
+      libgl1 \
+      libglib2.0-0 \
+      libgomp1 && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml /app/
+COPY deepdoc /app/deepdoc
+COPY common /app/common
+COPY docker/entrypoint.sh /app/docker/entrypoint.sh
+COPY main.py download_models.py openapi.json /app/
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install --upgrade pip setuptools wheel -i https://pypi.tuna.tsinghua.edu.cn/simple && \
+    python -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -e . && \
+    python -m pip uninstall -y onnxruntime onnxruntime-gpu || true && \
+    python -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple "${DEEPDOC_ONNXRUNTIME_PACKAGE}" && \
+    chmod +x /app/docker/entrypoint.sh && \
+    DEEPDOC_BUILD_VERSION="${DEEPDOC_BUILD_VERSION}" \
+    DEEPDOC_IMAGE_VARIANT="${DEEPDOC_IMAGE_VARIANT}" \
+    DEEPDOC_ONNXRUNTIME_PACKAGE="${DEEPDOC_ONNXRUNTIME_PACKAGE}" \
+    DEEPDOC_DEFAULT_ONNX_PROVIDER="${DEEPDOC_DEFAULT_ONNX_PROVIDER}" \
+    python - <<'PY'
+import json
+import os
+import platform
+from datetime import datetime, timezone
+from pathlib import Path
+
+Path("/app/build-info.json").write_text(
+    json.dumps(
+        {
+            "status": "ok",
+            "embedded": True,
+            "package_name": "deepdoc",
+            "package_version": os.environ.get("DEEPDOC_BUILD_VERSION", "0.1.0"),
+            "build_timestamp": datetime.now(timezone.utc).isoformat(),
+            "build_source": "docker",
+            "image_variant": os.environ.get("DEEPDOC_IMAGE_VARIANT", "cpu"),
+            "onnxruntime_package": os.environ.get("DEEPDOC_ONNXRUNTIME_PACKAGE"),
+            "default_onnx_provider": os.environ.get("DEEPDOC_DEFAULT_ONNX_PROVIDER"),
+            "python_version": platform.python_version(),
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+    + "\n",
+    encoding="utf-8",
+)
+PY
+
+RUN groupadd --gid "${DEEPDOC_RUNTIME_GID}" deepdoc && \
+    useradd --uid "${DEEPDOC_RUNTIME_UID}" --gid "${DEEPDOC_RUNTIME_GID}" \
+      --create-home --home-dir /home/deepdoc --shell /usr/sbin/nologin deepdoc && \
+    mkdir -p /app/resources/models /app/resources/artifacts /app/resources/logs /app/resources/temp && \
+    chown -R "${DEEPDOC_RUNTIME_UID}:${DEEPDOC_RUNTIME_GID}" /app /home/deepdoc
+
+ENV DEEPDOC_MODEL_PATH=/app/resources/models \
+    DEEPDOC_AUTO_DOWNLOAD=1 \
+    DEEPDOC_DOWNLOAD_GROUPS=published \
+    DEEPDOC_ONNX_PROVIDER=${DEEPDOC_DEFAULT_ONNX_PROVIDER} \
+    DEEPDOC_IMAGE_VARIANT=${DEEPDOC_IMAGE_VARIANT} \
+    DEEPDOC_WAIT_FOR_INGEST_DB=0 \
+    DEEPDOC_INGEST_PUBLISHER=none \
+    DEEPDOC_BUILD_INFO_PATH=/app/build-info.json \
+    HOME=/home/deepdoc \
+    XDG_CACHE_HOME=/home/deepdoc/.cache \
+    PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1
+
+VOLUME ["/app/resources/models"]
+EXPOSE 8000
+
+USER deepdoc
+
+ENTRYPOINT ["/app/docker/entrypoint.sh"]
+CMD ["python", "-u", "main.py"]
