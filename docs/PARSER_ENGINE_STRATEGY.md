@@ -6,7 +6,7 @@
 
 ## 1. 背景与目标
 
-DocPilot Standalone 当前支持 `deepdoc`、`paddleocr_vl`、`mineru`、`plain` 多种 PDF 解析路径；同时支持 `markitdown` 作为非 PDF Markdown 转换器。不同引擎在本地化部署、扫描件识别、复杂版面还原、论文公式表格处理、印章识别等方面侧重点不同。`paddleocr` 仍作为兼容别名保留，但对外建议统一使用 `paddleocr_vl`。
+DocPilot Standalone 当前支持 `docpilot`、`paddleocr_vl`、`mineru`、`plain` 多种 PDF 解析路径；其中 `docpilot` 兼容旧别名 `deepdoc`。同时支持 `markitdown` 作为非 PDF Markdown 转换器。不同引擎在本地化部署、扫描件识别、复杂版面还原、论文公式表格处理、印章识别等方面侧重点不同。`paddleocr` 仍作为兼容别名保留，但对外建议统一使用 `paddleocr_vl`。
 
 本文档用于沉淀初步解析选型规则：
 
@@ -18,7 +18,7 @@ DocPilot Standalone 当前支持 `deepdoc`、`paddleocr_vl`、`mineru`、`plain`
 
 | 引擎 | 当前定位 | 优先适用场景 | 不建议优先使用的场景 | 关键依赖 |
 |---|---|---|---|---|
-| `deepdoc` | 默认本地解析引擎，基于 OCR、版面识别、表格识别等本地模型 | 常规 PDF、文本层较清晰的合同/报告、需要离线或内网解析的场景 | 大量扫描页、强视觉理解、必须返回 `seal_count` 的场景 | 本地 ONNX 模型，`DEEPDOC_MODEL_PATH` |
+| `docpilot`（兼容 `deepdoc`） | 默认本地解析引擎，基于 OCR、版面识别、表格识别等本地模型 | 常规 PDF、文本层较清晰的合同/报告、需要离线或内网解析的场景 | 大量扫描页、强视觉理解、必须返回 `seal_count` 的场景 | 本地 ONNX 模型，`DEEPDOC_MODEL_PATH` |
 | `paddleocr_vl` | 远程 PaddleOCR-VL 解析引擎，视觉 OCR 与版面块识别能力更强 | 扫描版 PDF、政务材料、盖章合同、需要印章数量 `seal_count` 的场景 | 无可用 PaddleOCR 服务、强离线要求、网络不稳定场景 | `PADDLEOCR_API_URL` 或 `PADDLEOCR_GPU_API_URL` |
 | `markitdown` | 本地 Markdown 转换引擎，基于 Microsoft MarkItDown | 快速转换 Office、CSV/XML/EPUB/ZIP 等非 PDF 文件为 Markdown | 需要印章计数、复杂版面定位框、强视觉结构恢复的场景 | 本地 Python 依赖 `markitdown` |
 | `mineru` | 远程 MinerU 解析引擎，偏复杂学术/技术文档结构恢复 | 论文、技术报告、公式/表格/代码块较多的 PDF | 以印章校验为核心的合同/政务材料 | `MINERU_APISERVER` 或 `MINERU_GPU_API_URL` |

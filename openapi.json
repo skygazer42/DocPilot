@@ -220,7 +220,7 @@
                       "plain"
                     ],
                     "default": "deepdoc",
-                    "description": "PDF 解析引擎选择（默认 deepdoc，兼容旧别名 paddleocr）；非 PDF 文件可显式传 markitdown"
+                    "description": "PDF 解析引擎选择（首选 docpilot，兼容旧别名 deepdoc 和 paddleocr）；非 PDF 文件可显式传 markitdown"
                   },
                   "compute_device": {
                     "type": "string",

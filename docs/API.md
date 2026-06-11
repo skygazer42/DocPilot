@@ -83,7 +83,7 @@ curl -N -X POST "http://localhost:8000/api/v1/parse/stream" \
 | 参数 | 类型 | 默认值 | 说明 |
 |---|---:|---:|---|
 | `file` | file/list | 必填 | 支持 pdf/docx/xlsx/xls/pptx/ppt/html/json/md/txt/csv/tsv/rtf/odt/eml/msg/xml/zip/epub/caj/png/jpg/jpeg/bmp/tiff/webp |
-| `parser_engine` | string | `deepdoc` | PDF 引擎：`deepdoc`、`paddleocr_vl`、`mineru`、`plain`；非 PDF 可显式传 `markitdown` |
+| `parser_engine` | string | `deepdoc` | PDF 引擎：首选 `docpilot`（兼容旧别名 `deepdoc`）、`paddleocr_vl`、`mineru`、`plain`；非 PDF 可显式传 `markitdown` |
 | `compute_device` | string | `gpu` | 远程解析引擎设备模式：`gpu` 或 `cpu` |
 | `execution_profile` | string | `auto` | 执行画像：`auto` 保持当前默认调度；`cpu` 为保守 CPU 路径；`gpu` 为后续 GPU 页级并发/混合路由保留，当前仅做参数归一化与透传 |
 | `deepdoc_pdf_mode` | string | `auto` | deepdoc PDF 模式：`auto` 自动判别原生文本层/扫描件；`native` 强制原生文本层；`ocr` 强制 OCR + Layout；`hybrid` 为后续 page/block 混合路由保留，当前行为与 `auto` 一致 |
@@ -132,14 +132,14 @@ PDF 引擎示例：
 ```bash
 # DocPilot 自动判别：原生文本层 PDF 走 native text，扫描件走 OCR + Layout
 curl -X POST "http://localhost:8000/api/v1/parse" \
-  -F "parser_engine=deepdoc" \
+  -F "parser_engine=docpilot" \
   -F "deepdoc_pdf_mode=auto" \
   -F "return_structured=true" \
   -F "file=@/path/to/document.pdf"
 
 # DocPilot 强制 OCR + Layout
 curl -X POST "http://localhost:8000/api/v1/parse" \
-  -F "parser_engine=deepdoc" \
+  -F "parser_engine=docpilot" \
   -F "deepdoc_pdf_mode=ocr" \
   -F "file=@/path/to/document.pdf"
 
@@ -209,7 +209,7 @@ curl -X POST "http://localhost:8000/api/v1/parse?download=true" \
 ```bash
 curl -X POST "http://localhost:8000/api/v1/parse/async" \
   -F "file=@/path/to/document.pdf" \
-  -F "parser_engine=deepdoc" \
+  -F "parser_engine=docpilot" \
   -F "return_structured=true" \
   -F "persist_artifacts=true" \
   -F "include_chunks=true" \

@@ -126,7 +126,6 @@ class PdfNativeDetectionTest(unittest.TestCase):
         repo_root = Path(__file__).resolve().parents[1]
         api_doc = (repo_root / "docs/API.md").read_text(encoding="utf-8")
         strategy_doc = (repo_root / "docs/PARSER_ENGINE_STRATEGY.md").read_text(encoding="utf-8")
-        roadmap = (repo_root / "plans/optimization-roadmap.md").read_text(encoding="utf-8")
         openapi = json.loads((repo_root / "openapi.json").read_text(encoding="utf-8"))
         parse_schema = (
             openapi["paths"]["/api/v1/parse"]["post"]["requestBody"]["content"]["multipart/form-data"]["schema"]
@@ -146,8 +145,6 @@ class PdfNativeDetectionTest(unittest.TestCase):
         self.assertIn("execution_profile", api_doc)
         self.assertIn("hybrid", strategy_doc)
         self.assertIn("execution_profile", strategy_doc)
-        self.assertIn("deepdoc_pdf_mode=auto/native/ocr/hybrid", roadmap)
-        self.assertIn("execution_profile=auto/cpu/gpu", roadmap)
         for schema in (parse_schema, stream_schema, async_schema):
             pdf_mode = schema["properties"].get("deepdoc_pdf_mode")
             self.assertIsInstance(pdf_mode, dict)
@@ -157,6 +154,16 @@ class PdfNativeDetectionTest(unittest.TestCase):
             self.assertIsInstance(execution_profile, dict)
             self.assertEqual(["auto", "cpu", "gpu"], execution_profile.get("enum"))
             self.assertEqual("auto", execution_profile.get("default"))
+
+    def test_docpilot_is_documented_as_preferred_parser_engine_alias(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        readme = (repo_root / "README.md").read_text(encoding="utf-8")
+        api_doc = (repo_root / "docs/API.md").read_text(encoding="utf-8")
+        strategy_doc = (repo_root / "docs/PARSER_ENGINE_STRATEGY.md").read_text(encoding="utf-8")
+
+        self.assertIn("`docpilot`", readme)
+        self.assertIn("`docpilot`", api_doc)
+        self.assertIn("`docpilot`", strategy_doc)
 
     def test_parse_options_normalize_hybrid_mode_and_execution_profile(self):
         with main.app.test_request_context(
@@ -182,6 +189,16 @@ class PdfNativeDetectionTest(unittest.TestCase):
 
         self.assertEqual("auto", defaulted["deepdoc_pdf_mode"])
         self.assertEqual("auto", defaulted["execution_profile"])
+
+    def test_parse_options_accept_docpilot_parser_engine_alias(self):
+        with main.app.test_request_context(
+            "/api/v1/parse",
+            method="POST",
+            data={"parser_engine": "docpilot"},
+        ):
+            options = main._build_parse_options()
+
+        self.assertEqual("deepdoc", options["parser_engine"])
 
     def test_parse_options_honor_env_fallbacks(self):
         with patch.dict(

@@ -3260,7 +3260,7 @@ def build_app():
                         ingest_parser_engine = gr.Textbox(
                             label="Parser Engine 过滤",
                             value="",
-                            placeholder="如 deepdoc / markitdown / mineru",
+                            placeholder="如 docpilot / markitdown / mineru",
                         )
                         ingest_file_type = gr.Textbox(
                             label="File Type 过滤",

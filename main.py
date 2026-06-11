@@ -1497,6 +1497,8 @@ MARKITDOWN_FILE_TYPES = {
     "epub",
 }
 PARSER_ENGINE_ALIASES = {
+    "docpilot": "deepdoc",
+    "doc-pilot": "deepdoc",
     "paddleocr": PADDLEOCR_VL_ENGINE,
     "paddleocr-vl": PADDLEOCR_VL_ENGINE,
     "paddleocrvl": PADDLEOCR_VL_ENGINE,
