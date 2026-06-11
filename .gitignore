@@ -24,6 +24,9 @@ env/
 # Local build/runtime metadata
 build-info.json
 .ci/
+plans/
+docs/plans/
+docs/superpowers/
 tools/eval_datasets/*
 !tools/eval_datasets/README.md
 
