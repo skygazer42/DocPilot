@@ -1,6 +1,5 @@
 <div align="center">
-  <img src="docs/assets/docpilot-logo.png" alt="DocPilot logo" width="720" />
-  <h1>DocPilot</h1>
+  <img src="docs/assets/docpilot-logo.png" alt="DocPilot logo" width="420" />
   <p><strong>面向生产环境的文档解析服务</strong></p>
   <p>把 PDF、Office、图片、邮件和网页文档解析为 Markdown、structured JSON、chunks 和可复用资产。</p>
   <p>
