@@ -1,6 +1,6 @@
 # DocPilot 文档解析接口对接说明
 
-本文档说明 DocPilot Standalone 的接口边界：文档解析、结构化产物、切块、资产访问、异步任务和 ingest 查询。
+本文档说明 DocPilot 的接口边界：文档解析、结构化产物、切块、资产访问、异步任务和 ingest 查询。
 
 服务不负责问答、回答生成或外部大模型调用。解析完成后的 `structured.json`、`chunks.jsonl`、`ingest.jsonl` 和资产引用就是可交付给业务系统使用的数据。
 

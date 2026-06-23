@@ -6,7 +6,7 @@
 
 ## 1. 背景与目标
 
-DocPilot Standalone 当前支持 `docpilot`、`paddleocr_vl`、`mineru`、`plain` 多种 PDF 解析路径；其中 `docpilot` 兼容旧别名 `deepdoc`。同时支持 `markitdown` 作为非 PDF Markdown 转换器。不同引擎在本地化部署、扫描件识别、复杂版面还原、论文公式表格处理、印章识别等方面侧重点不同。`paddleocr` 仍作为兼容别名保留，但对外建议统一使用 `paddleocr_vl`。
+DocPilot 当前支持 `docpilot`、`paddleocr_vl`、`mineru`、`plain` 多种 PDF 解析路径；其中 `docpilot` 兼容旧别名 `deepdoc`。同时支持 `markitdown` 作为非 PDF Markdown 转换器。不同引擎在本地化部署、扫描件识别、复杂版面还原、论文公式表格处理、印章识别等方面侧重点不同。`paddleocr` 仍作为兼容别名保留，但对外建议统一使用 `paddleocr_vl`。
 
 本文档用于沉淀初步解析选型规则：
 

@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "DocPilot Standalone API",
+    "title": "DocPilot API",
     "description": "工业级文档理解引擎，提供 OCR 识别、版面分析和多格式文档解析服务。",
     "version": "v1.0.0"
   },
